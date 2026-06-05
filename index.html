@@ -1,0 +1,1055 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>프린트맵 — 내 근처 프린트 장소 찾기</title>
+  <meta name="description" content="CU 프린팅박스, 편의점 무인출력, 복사집까지. 내 근처 프린트 가능한 곳을 한눈에.">
+
+  <!-- 카카오맵 API - 실제 사용시 appkey 교체 필요 -->
+  <script type="text/javascript" src="//dapi.kakao.com/v2/maps/sdk.js?appkey=YOUR_KAKAO_APP_KEY&libraries=services,clusterer"></script>
+
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Gmarket+Sans:wght@300;500;700&family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
+
+  <style>
+    :root {
+      --bg: #0f0f0f;
+      --surface: #1a1a1a;
+      --surface2: #242424;
+      --border: #2e2e2e;
+      --accent: #00e5a0;
+      --accent2: #ff6b35;
+      --text: #f0f0f0;
+      --text-muted: #888;
+      --cu: #00c473;
+      --gs: #0064c8;
+      --copy: #ff4444;
+      --other: #9b59b6;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'Noto Sans KR', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      height: 100dvh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* 헤더 */
+    header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 16px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      z-index: 100;
+      flex-shrink: 0;
+    }
+
+    .logo {
+      font-family: 'Gmarket Sans', sans-serif;
+      font-weight: 700;
+      font-size: 18px;
+      color: var(--accent);
+      letter-spacing: -0.5px;
+      white-space: nowrap;
+    }
+
+    .logo span {
+      color: var(--text);
+    }
+
+    /* 검색바 */
+    .search-wrap {
+      flex: 1;
+      position: relative;
+      max-width: 400px;
+    }
+
+    .search-wrap input {
+      width: 100%;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 8px 36px 8px 12px;
+      color: var(--text);
+      font-size: 13px;
+      font-family: 'Noto Sans KR', sans-serif;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+
+    .search-wrap input:focus {
+      border-color: var(--accent);
+    }
+
+    .search-wrap input::placeholder { color: var(--text-muted); }
+
+    .search-btn {
+      position: absolute;
+      right: 8px;
+      top: 50%;
+      transform: translateY(-50%);
+      background: none;
+      border: none;
+      cursor: pointer;
+      color: var(--text-muted);
+      font-size: 16px;
+      padding: 2px;
+    }
+
+    /* 필터 탭 */
+    .filter-bar {
+      display: flex;
+      gap: 6px;
+      padding: 10px 16px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      overflow-x: auto;
+      flex-shrink: 0;
+      scrollbar-width: none;
+    }
+
+    .filter-bar::-webkit-scrollbar { display: none; }
+
+    .filter-btn {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      padding: 5px 12px;
+      border-radius: 20px;
+      border: 1px solid var(--border);
+      background: var(--surface2);
+      color: var(--text-muted);
+      font-size: 12px;
+      font-family: 'Noto Sans KR', sans-serif;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: all 0.15s;
+    }
+
+    .filter-btn .dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+    }
+
+    .filter-btn.active {
+      border-color: var(--accent);
+      color: var(--text);
+      background: rgba(0, 229, 160, 0.1);
+    }
+
+    .filter-btn:hover { border-color: #555; color: var(--text); }
+
+    /* 메인 레이아웃 */
+    .main {
+      display: flex;
+      flex: 1;
+      overflow: hidden;
+    }
+
+    /* 지도 */
+    #map {
+      flex: 1;
+      position: relative;
+    }
+
+    /* 내 위치 버튼 */
+    .locate-btn {
+      position: absolute;
+      bottom: 80px;
+      right: 16px;
+      z-index: 10;
+      width: 42px;
+      height: 42px;
+      border-radius: 10px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--text);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+      transition: all 0.15s;
+    }
+
+    .locate-btn:hover {
+      background: var(--surface2);
+      border-color: var(--accent);
+    }
+
+    /* 사이드 패널 (데스크탑) */
+    .side-panel {
+      width: 320px;
+      background: var(--surface);
+      border-left: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .panel-header {
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--border);
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    .panel-header strong {
+      color: var(--accent);
+      font-size: 14px;
+    }
+
+    .place-list {
+      overflow-y: auto;
+      flex: 1;
+      scrollbar-width: thin;
+      scrollbar-color: var(--border) transparent;
+    }
+
+    .place-item {
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--border);
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+
+    .place-item:hover { background: var(--surface2); }
+    .place-item.active { background: rgba(0, 229, 160, 0.07); }
+
+    .place-top {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 5px;
+    }
+
+    .place-badge {
+      font-size: 10px;
+      padding: 2px 7px;
+      border-radius: 4px;
+      font-weight: 700;
+      letter-spacing: 0.3px;
+    }
+
+    .badge-cu { background: rgba(0,196,115,0.15); color: var(--cu); }
+    .badge-gs { background: rgba(0,100,200,0.15); color: var(--gs); }
+    .badge-copy { background: rgba(255,68,68,0.15); color: var(--copy); }
+    .badge-other { background: rgba(155,89,182,0.15); color: var(--other); }
+
+    .place-name {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--text);
+    }
+
+    .place-addr {
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-bottom: 6px;
+      line-height: 1.4;
+    }
+
+    .place-tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+    }
+
+    .tag {
+      font-size: 10px;
+      padding: 2px 6px;
+      border-radius: 4px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+    }
+
+    .tag.open { color: var(--accent); border-color: rgba(0,229,160,0.3); }
+
+    /* 바텀 시트 (모바일) */
+    .bottom-sheet {
+      display: none;
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: var(--surface);
+      border-radius: 16px 16px 0 0;
+      border-top: 1px solid var(--border);
+      z-index: 20;
+      max-height: 55vh;
+      overflow: hidden;
+      flex-direction: column;
+      box-shadow: 0 -8px 32px rgba(0,0,0,0.5);
+    }
+
+    .bottom-sheet.open { display: flex; }
+
+    .sheet-handle {
+      width: 36px;
+      height: 4px;
+      border-radius: 2px;
+      background: var(--border);
+      margin: 10px auto 0;
+      flex-shrink: 0;
+    }
+
+    .sheet-header {
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--border);
+      font-size: 12px;
+      color: var(--text-muted);
+      flex-shrink: 0;
+    }
+
+    .sheet-list {
+      overflow-y: auto;
+      scrollbar-width: none;
+    }
+
+    /* 상세 팝업 */
+    .detail-popup {
+      display: none;
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: var(--surface);
+      border-radius: 16px 16px 0 0;
+      border-top: 1px solid var(--border);
+      z-index: 30;
+      padding: 0 0 24px;
+      box-shadow: 0 -8px 32px rgba(0,0,0,0.6);
+    }
+
+    .detail-popup.open { display: block; }
+
+    .detail-handle {
+      width: 36px;
+      height: 4px;
+      border-radius: 2px;
+      background: var(--border);
+      margin: 10px auto 14px;
+    }
+
+    .detail-content { padding: 0 20px; }
+
+    .detail-top {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      margin-bottom: 12px;
+    }
+
+    .detail-name {
+      font-family: 'Gmarket Sans', sans-serif;
+      font-size: 18px;
+      font-weight: 700;
+      line-height: 1.3;
+    }
+
+    .detail-close {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+      width: 28px;
+      height: 28px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      margin-left: 12px;
+    }
+
+    .detail-addr {
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-bottom: 14px;
+      line-height: 1.5;
+    }
+
+    .detail-info {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+
+    .info-chip {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px 12px;
+    }
+
+    .info-chip .label {
+      font-size: 10px;
+      color: var(--text-muted);
+      margin-bottom: 3px;
+    }
+
+    .info-chip .value {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--text);
+    }
+
+    .info-chip .value.green { color: var(--accent); }
+    .info-chip .value.red { color: var(--copy); }
+
+    .detail-actions {
+      display: flex;
+      gap: 8px;
+    }
+
+    .action-btn {
+      flex: 1;
+      padding: 11px;
+      border-radius: 10px;
+      border: none;
+      font-size: 13px;
+      font-weight: 700;
+      font-family: 'Noto Sans KR', sans-serif;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .action-btn.primary {
+      background: var(--accent);
+      color: #000;
+    }
+
+    .action-btn.secondary {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      color: var(--text);
+    }
+
+    .action-btn:hover { opacity: 0.85; }
+
+    /* 제보 버튼 */
+    .report-btn {
+      position: absolute;
+      bottom: 80px;
+      left: 16px;
+      z-index: 10;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 9px 14px;
+      border-radius: 10px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--text);
+      font-size: 12px;
+      font-family: 'Noto Sans KR', sans-serif;
+      cursor: pointer;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+      transition: all 0.15s;
+      text-decoration: none;
+    }
+
+    .report-btn:hover {
+      border-color: var(--accent2);
+      color: var(--accent2);
+    }
+
+    /* 카운트 배지 */
+    .count-badge {
+      background: var(--accent);
+      color: #000;
+      font-size: 11px;
+      font-weight: 700;
+      padding: 2px 7px;
+      border-radius: 10px;
+    }
+
+    /* 카카오맵 커스텀 마커 오버레이 스타일 */
+    .custom-marker {
+      position: relative;
+    }
+
+    /* 로딩 */
+    .loading-overlay {
+      position: absolute;
+      inset: 0;
+      background: var(--bg);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 50;
+      gap: 12px;
+    }
+
+    .loading-overlay .logo {
+      font-size: 24px;
+    }
+
+    .loading-dots {
+      display: flex;
+      gap: 6px;
+    }
+
+    .loading-dots span {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--accent);
+      animation: bounce 0.8s infinite;
+    }
+
+    .loading-dots span:nth-child(2) { animation-delay: 0.15s; }
+    .loading-dots span:nth-child(3) { animation-delay: 0.3s; }
+
+    @keyframes bounce {
+      0%, 80%, 100% { transform: scale(0.6); opacity: 0.4; }
+      40% { transform: scale(1); opacity: 1; }
+    }
+
+    /* 반응형 */
+    @media (max-width: 768px) {
+      .side-panel { display: none; }
+      .bottom-sheet { display: flex; }
+      #map { position: relative; }
+    }
+
+    @media (min-width: 769px) {
+      .bottom-sheet { display: none !important; }
+      .detail-popup { display: none !important; }
+    }
+
+    /* 광고 영역 */
+    .ad-banner {
+      padding: 8px 16px;
+      background: var(--surface);
+      border-top: 1px solid var(--border);
+      text-align: center;
+      font-size: 11px;
+      color: var(--text-muted);
+      flex-shrink: 0;
+    }
+  </style>
+</head>
+<body>
+
+<!-- 헤더 -->
+<header>
+  <div class="logo">프린트<span>맵</span></div>
+  <div class="search-wrap">
+    <input type="text" id="searchInput" placeholder="주소나 장소명으로 검색" />
+    <button class="search-btn" onclick="searchAddress()">🔍</button>
+  </div>
+</header>
+
+<!-- 필터 -->
+<div class="filter-bar">
+  <button class="filter-btn active" data-type="all" onclick="filterPlaces('all', this)">
+    <span class="dot" style="background:#00e5a0"></span> 전체
+    <span class="count-badge" id="count-all">0</span>
+  </button>
+  <button class="filter-btn" data-type="cu" onclick="filterPlaces('cu', this)">
+    <span class="dot" style="background:var(--cu)"></span> CU 프린팅박스
+    <span class="count-badge" id="count-cu" style="background:var(--cu)">0</span>
+  </button>
+  <button class="filter-btn" data-type="gs" onclick="filterPlaces('gs', this)">
+    <span class="dot" style="background:var(--gs)"></span> GS25 출력
+    <span class="count-badge" id="count-gs" style="background:var(--gs)">0</span>
+  </button>
+  <button class="filter-btn" data-type="copy" onclick="filterPlaces('copy', this)">
+    <span class="dot" style="background:var(--copy)"></span> 복사집
+    <span class="count-badge" id="count-copy" style="background:var(--copy)">0</span>
+  </button>
+  <button class="filter-btn" data-type="other" onclick="filterPlaces('other', this)">
+    <span class="dot" style="background:var(--other)"></span> 기타 무인출력
+    <span class="count-badge" id="count-other" style="background:var(--other)">0</span>
+  </button>
+  <button class="filter-btn" data-type="open24" onclick="filterPlaces('open24', this)">
+    ⚡ 24시간
+  </button>
+</div>
+
+<!-- 메인 -->
+<div class="main">
+
+  <!-- 지도 영역 -->
+  <div id="map">
+    <!-- 로딩 -->
+    <div class="loading-overlay" id="loadingOverlay">
+      <div class="logo">프린트<span style="color:var(--text)">맵</span></div>
+      <div class="loading-dots"><span></span><span></span><span></span></div>
+      <div style="font-size:12px;color:var(--text-muted)">지도를 불러오는 중...</div>
+    </div>
+
+    <!-- 내 위치 버튼 -->
+    <button class="locate-btn" onclick="locateMe()" title="내 위치로 이동">📍</button>
+
+    <!-- 제보 버튼 -->
+    <a href="mailto:your@email.com?subject=프린트맵 장소 제보" class="report-btn">
+      ✏️ 장소 제보
+    </a>
+
+    <!-- 모바일 바텀시트 -->
+    <div class="bottom-sheet open" id="bottomSheet">
+      <div class="sheet-handle"></div>
+      <div class="sheet-header">
+        주변 <strong id="nearbyCount" style="color:var(--accent)">0</strong>곳의 프린트 장소
+      </div>
+      <div class="place-list sheet-list" id="mobileList"></div>
+    </div>
+
+    <!-- 모바일 상세 팝업 -->
+    <div class="detail-popup" id="detailPopup">
+      <div class="detail-handle"></div>
+      <div class="detail-content">
+        <div class="detail-top">
+          <div>
+            <div id="detailBadge" style="margin-bottom:6px"></div>
+            <div class="detail-name" id="detailName"></div>
+          </div>
+          <button class="detail-close" onclick="closeDetail()">✕</button>
+        </div>
+        <div class="detail-addr" id="detailAddr"></div>
+        <div class="detail-info" id="detailInfo"></div>
+        <div class="detail-actions">
+          <button class="action-btn primary" id="detailNavi" onclick="">🗺 길찾기</button>
+          <button class="action-btn secondary" onclick="closeDetail()">목록으로</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 데스크탑 사이드 패널 -->
+  <div class="side-panel">
+    <div class="panel-header">
+      주변 <strong id="sideCount">0</strong>곳의 프린트 장소
+    </div>
+    <div class="place-list" id="desktopList"></div>
+  </div>
+</div>
+
+<!-- 광고 배너 -->
+<div class="ad-banner">
+  <!-- 구글 애드센스 코드 여기 삽입 -->
+  광고 영역
+</div>
+
+<script>
+// =============================================
+// 샘플 데이터 (실제로는 Google Sheets API로 교체)
+// =============================================
+const SAMPLE_DATA = [
+  {
+    id: 1,
+    name: "CU 강남역점",
+    type: "cu",
+    address: "서울 강남구 강남대로 396",
+    lat: 37.4979,
+    lng: 127.0276,
+    hours: "24시간",
+    is24h: true,
+    bw: "100원",
+    color: "300원",
+    services: ["문서출력", "사진인화", "여권사진"],
+    phone: ""
+  },
+  {
+    id: 2,
+    name: "GS25 선릉역점",
+    type: "gs",
+    address: "서울 강남구 테헤란로 211",
+    lat: 37.5045,
+    lng: 127.0498,
+    hours: "24시간",
+    is24h: true,
+    bw: "100원",
+    color: "300원",
+    services: ["문서출력", "사진인화"],
+    phone: ""
+  },
+  {
+    id: 3,
+    name: "세종복사",
+    type: "copy",
+    address: "서울 강남구 역삼로 160",
+    lat: 37.5012,
+    lng: 127.0361,
+    hours: "09:00-22:00",
+    is24h: false,
+    bw: "50원",
+    color: "300원",
+    services: ["문서출력", "복사", "스캔", "제본", "코팅"],
+    phone: "02-1234-5678"
+  },
+  {
+    id: 4,
+    name: "CU 역삼1동점",
+    type: "cu",
+    address: "서울 강남구 역삼로 152",
+    lat: 37.4995,
+    lng: 127.0332,
+    hours: "24시간",
+    is24h: true,
+    bw: "100원",
+    color: "200원",
+    services: ["문서출력", "사진인화"],
+    phone: ""
+  },
+  {
+    id: 5,
+    name: "무인출력 스테이션",
+    type: "other",
+    address: "서울 강남구 테헤란로 152",
+    lat: 37.5005,
+    lng: 127.0385,
+    hours: "24시간",
+    is24h: true,
+    bw: "80원",
+    color: "250원",
+    services: ["문서출력", "스캔"],
+    phone: ""
+  },
+];
+
+// =============================================
+// 전역 변수
+// =============================================
+let map = null;
+let markers = [];
+let currentFilter = 'all';
+let selectedPlace = null;
+let userMarker = null;
+
+// 타입별 색상/라벨
+const TYPE_CONFIG = {
+  cu:    { label: 'CU 프린팅박스', color: '#00c473', badgeClass: 'badge-cu', emoji: '🟢' },
+  gs:    { label: 'GS25 출력',     color: '#0064c8', badgeClass: 'badge-gs', emoji: '🔵' },
+  copy:  { label: '복사집',         color: '#ff4444', badgeClass: 'badge-copy', emoji: '🔴' },
+  other: { label: '무인출력',       color: '#9b59b6', badgeClass: 'badge-other', emoji: '🟣' },
+};
+
+// =============================================
+// 지도 초기화
+// =============================================
+function initMap() {
+  const container = document.getElementById('map');
+  const options = {
+    center: new kakao.maps.LatLng(37.5665, 126.9780), // 서울 중심
+    level: 5,
+  };
+  map = new kakao.maps.Map(container, options);
+
+  document.getElementById('loadingOverlay').style.display = 'none';
+
+  // 데이터 로드 (실제로는 Google Sheets API 호출)
+  loadPlaces(SAMPLE_DATA);
+
+  // 현재 위치 자동 시도
+  locateMe(true);
+
+  // 지도 이동 시 목록 업데이트
+  kakao.maps.event.addListener(map, 'idle', updateVisibleList);
+}
+
+// =============================================
+// Google Sheets에서 데이터 로드 (실제 사용시)
+// =============================================
+async function loadFromGoogleSheets() {
+  // Google Sheets를 CSV로 공개 후 아래 URL 형식으로 fetch
+  // const SHEET_ID = 'YOUR_SHEET_ID';
+  // const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json`;
+  // const res = await fetch(url);
+  // ... 파싱 후 loadPlaces() 호출
+}
+
+// =============================================
+// 마커 생성
+// =============================================
+function createMarkerContent(place) {
+  const cfg = TYPE_CONFIG[place.type];
+  return `
+    <div style="
+      background:${cfg.color};
+      color:white;
+      padding:4px 8px;
+      border-radius:12px;
+      font-size:11px;
+      font-weight:700;
+      white-space:nowrap;
+      box-shadow:0 2px 8px rgba(0,0,0,0.4);
+      cursor:pointer;
+      border:2px solid rgba(255,255,255,0.3);
+      font-family:'Noto Sans KR',sans-serif;
+    ">
+      ${cfg.emoji} ${place.name}
+    </div>
+  `;
+}
+
+function loadPlaces(data) {
+  // 기존 마커 제거
+  markers.forEach(m => m.marker.setMap(null));
+  markers = [];
+
+  data.forEach(place => {
+    const pos = new kakao.maps.LatLng(place.lat, place.lng);
+
+    const content = createMarkerContent(place);
+    const overlay = new kakao.maps.CustomOverlay({
+      position: pos,
+      content: content,
+      yAnchor: 1.2,
+    });
+
+    overlay.setMap(map);
+
+    // 클릭 이벤트는 DOM에 직접 바인딩
+    setTimeout(() => {
+      const el = overlay.getContent();
+      if (typeof el === 'string') return;
+      el.addEventListener('click', () => openDetail(place));
+    }, 100);
+
+    markers.push({ marker: overlay, place });
+  });
+
+  updateCounts(data);
+  updateVisibleList();
+}
+
+// =============================================
+// 필터
+// =============================================
+function filterPlaces(type, btn) {
+  currentFilter = type;
+
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+
+  markers.forEach(({ marker, place }) => {
+    let visible = false;
+    if (type === 'all') visible = true;
+    else if (type === 'open24') visible = place.is24h;
+    else visible = place.type === type;
+
+    marker.setMap(visible ? map : null);
+  });
+
+  updateVisibleList();
+}
+
+// =============================================
+// 목록 업데이트
+// =============================================
+function updateVisibleList() {
+  const bounds = map ? map.getBounds() : null;
+
+  let visible = markers
+    .filter(({ marker, place }) => {
+      if (!marker.getMap()) return false;
+      if (!bounds) return true;
+      return bounds.contain(new kakao.maps.LatLng(place.lat, place.lng));
+    })
+    .map(m => m.place);
+
+  const count = visible.length;
+  document.getElementById('nearbyCount').textContent = count;
+  document.getElementById('sideCount').textContent = count;
+
+  const html = visible.map(place => placeItemHTML(place)).join('');
+  document.getElementById('mobileList').innerHTML = html || '<div style="padding:24px;text-align:center;color:var(--text-muted);font-size:13px">이 지역에 등록된 장소가 없어요</div>';
+  document.getElementById('desktopList').innerHTML = html || '<div style="padding:24px;text-align:center;color:var(--text-muted);font-size:13px">이 지역에 등록된 장소가 없어요</div>';
+}
+
+function placeItemHTML(place) {
+  const cfg = TYPE_CONFIG[place.type];
+  const tags = [
+    place.is24h ? '<span class="tag open">24시간</span>' : `<span class="tag">${place.hours}</span>`,
+    `<span class="tag">흑백 ${place.bw}</span>`,
+    ...place.services.slice(0, 2).map(s => `<span class="tag">${s}</span>`),
+  ].join('');
+
+  return `
+    <div class="place-item" onclick="openDetail(${JSON.stringify(place).replace(/"/g, '&quot;')})">
+      <div class="place-top">
+        <span class="place-badge ${cfg.badgeClass}">${cfg.label}</span>
+      </div>
+      <div class="place-name">${place.name}</div>
+      <div class="place-addr">${place.address}</div>
+      <div class="place-tags">${tags}</div>
+    </div>
+  `;
+}
+
+// =============================================
+// 카운트 업데이트
+// =============================================
+function updateCounts(data) {
+  const counts = { all: data.length, cu: 0, gs: 0, copy: 0, other: 0 };
+  data.forEach(p => counts[p.type]++);
+  Object.keys(counts).forEach(k => {
+    const el = document.getElementById(`count-${k}`);
+    if (el) el.textContent = counts[k];
+  });
+}
+
+// =============================================
+// 상세 팝업 (모바일)
+// =============================================
+function openDetail(place) {
+  selectedPlace = place;
+  const cfg = TYPE_CONFIG[place.type];
+
+  // 지도 이동
+  map.panTo(new kakao.maps.LatLng(place.lat, place.lng));
+
+  // 모바일 팝업
+  if (window.innerWidth <= 768) {
+    document.getElementById('detailBadge').innerHTML =
+      `<span class="place-badge ${cfg.badgeClass}">${cfg.label}</span>`;
+    document.getElementById('detailName').textContent = place.name;
+    document.getElementById('detailAddr').textContent = place.address;
+    document.getElementById('detailInfo').innerHTML = `
+      <div class="info-chip">
+        <div class="label">운영시간</div>
+        <div class="value ${place.is24h ? 'green' : ''}">${place.hours}</div>
+      </div>
+      <div class="info-chip">
+        <div class="label">흑백 출력</div>
+        <div class="value">${place.bw}</div>
+      </div>
+      <div class="info-chip">
+        <div class="label">컬러 출력</div>
+        <div class="value">${place.color}</div>
+      </div>
+      <div class="info-chip">
+        <div class="label">서비스</div>
+        <div class="value" style="font-size:11px">${place.services.join(', ')}</div>
+      </div>
+    `;
+
+    const naviUrl = `https://map.kakao.com/link/to/${encodeURIComponent(place.name)},${place.lat},${place.lng}`;
+    document.getElementById('detailNavi').onclick = () => window.open(naviUrl, '_blank');
+
+    document.getElementById('detailPopup').classList.add('open');
+    document.getElementById('bottomSheet').classList.remove('open');
+  }
+}
+
+function closeDetail() {
+  document.getElementById('detailPopup').classList.remove('open');
+  document.getElementById('bottomSheet').classList.add('open');
+}
+
+// =============================================
+// 내 위치
+// =============================================
+function locateMe(silent = false) {
+  if (!navigator.geolocation) {
+    if (!silent) alert('위치 정보를 지원하지 않는 브라우저입니다.');
+    return;
+  }
+
+  navigator.geolocation.getCurrentPosition(
+    pos => {
+      const lat = pos.coords.latitude;
+      const lng = pos.coords.longitude;
+      const latlng = new kakao.maps.LatLng(lat, lng);
+
+      map.setCenter(latlng);
+      map.setLevel(4);
+
+      if (userMarker) userMarker.setMap(null);
+
+      const content = `
+        <div style="
+          width:14px;height:14px;
+          background:#00e5a0;
+          border:3px solid white;
+          border-radius:50%;
+          box-shadow:0 0 0 4px rgba(0,229,160,0.3);
+        "></div>
+      `;
+      userMarker = new kakao.maps.CustomOverlay({
+        position: latlng,
+        content: content,
+      });
+      userMarker.setMap(map);
+    },
+    err => {
+      if (!silent) alert('위치 정보를 가져올 수 없습니다.');
+    }
+  );
+}
+
+// =============================================
+// 주소 검색
+// =============================================
+function searchAddress() {
+  const query = document.getElementById('searchInput').value.trim();
+  if (!query) return;
+
+  const geocoder = new kakao.maps.services.Geocoder();
+  geocoder.addressSearch(query, (result, status) => {
+    if (status === kakao.maps.services.Status.OK) {
+      const lat = parseFloat(result[0].y);
+      const lng = parseFloat(result[0].x);
+      map.setCenter(new kakao.maps.LatLng(lat, lng));
+      map.setLevel(4);
+    } else {
+      // 키워드 검색으로 fallback
+      const ps = new kakao.maps.services.Places();
+      ps.keywordSearch(query, (result, status) => {
+        if (status === kakao.maps.services.Status.OK) {
+          const lat = parseFloat(result[0].y);
+          const lng = parseFloat(result[0].x);
+          map.setCenter(new kakao.maps.LatLng(lat, lng));
+          map.setLevel(4);
+        }
+      });
+    }
+  });
+}
+
+document.getElementById('searchInput').addEventListener('keydown', e => {
+  if (e.key === 'Enter') searchAddress();
+});
+
+// =============================================
+// 카카오맵 로드 후 초기화
+// =============================================
+window.addEventListener('load', () => {
+  if (typeof kakao !== 'undefined' && kakao.maps) {
+    kakao.maps.load(initMap);
+  } else {
+    // API 키 미설정 시 안내
+    document.getElementById('loadingOverlay').innerHTML = `
+      <div style="text-align:center;padding:24px">
+        <div style="font-size:32px;margin-bottom:12px">🗺</div>
+        <div style="font-family:'Gmarket Sans',sans-serif;font-size:20px;color:var(--accent);margin-bottom:8px">프린트맵</div>
+        <div style="font-size:13px;color:var(--text-muted);line-height:1.8">
+          카카오맵 API 키를 설정해주세요.<br>
+          <code style="background:var(--surface2);padding:2px 6px;border-radius:4px;color:var(--accent)">YOUR_KAKAO_APP_KEY</code><br>를 실제 키로 교체하세요.
+        </div>
+      </div>
+    `;
+  }
+});
+</script>
+
+</body>
+</html>
