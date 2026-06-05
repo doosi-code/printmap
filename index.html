@@ -755,8 +755,8 @@ function initMap() {
 
   document.getElementById('loadingOverlay').style.display = 'none';
 
-  // 데이터 로드 (실제로는 Google Sheets API 호출)
-  loadPlaces(SAMPLE_DATA);
+  // Google Sheets에서 데이터 로드
+  loadFromGoogleSheets();
 
   // 현재 위치 자동 시도
   locateMe(true);
@@ -766,14 +766,51 @@ function initMap() {
 }
 
 // =============================================
-// Google Sheets에서 데이터 로드 (실제 사용시)
+// Google Sheets에서 데이터 로드
 // =============================================
 async function loadFromGoogleSheets() {
-  // Google Sheets를 CSV로 공개 후 아래 URL 형식으로 fetch
-  // const SHEET_ID = 'YOUR_SHEET_ID';
-  // const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json`;
-  // const res = await fetch(url);
-  // ... 파싱 후 loadPlaces() 호출
+  const SHEET_ID = '1qtGUp836zEjUH8Xlc4EY0kIN3vtdqv8WciQGfH2YNZE';
+  const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=Sheet1`;
+
+  try {
+    const res = await fetch(url);
+    const text = await res.text();
+
+    // 구글 시트 응답에서 JSON 파싱 (앞뒤 불필요한 텍스트 제거)
+    const json = JSON.parse(text.match(/google\.visualization\.Query\.setResponse\(([\s\S]*?)\);/)[1]);
+    const rows = json.table.rows;
+    const cols = json.table.cols;
+
+    if (!rows || rows.length === 0) {
+      console.log('시트에 데이터가 없습니다. 샘플 데이터를 사용합니다.');
+      loadPlaces(SAMPLE_DATA);
+      return;
+    }
+
+    const places = rows.map((row, i) => {
+      const get = (idx) => row.c[idx]?.v ?? '';
+      return {
+        id:       get(0) || i + 1,
+        name:     get(1),
+        type:     get(2),
+        address:  get(3),
+        lat:      parseFloat(get(4)),
+        lng:      parseFloat(get(5)),
+        hours:    get(6) || '정보 없음',
+        is24h:    get(7) === true || get(7) === 'TRUE' || get(7) === '1',
+        bw:       get(8) || '정보 없음',
+        color:    get(9) || '정보 없음',
+        services: get(10) ? String(get(10)).split(',').map(s => s.trim()) : [],
+      };
+    }).filter(p => p.name && !isNaN(p.lat) && !isNaN(p.lng));
+
+    console.log(`✅ Google Sheets에서 ${places.length}개 장소 로드됨`);
+    loadPlaces(places.length > 0 ? places : SAMPLE_DATA);
+
+  } catch (e) {
+    console.warn('Google Sheets 로드 실패, 샘플 데이터 사용:', e);
+    loadPlaces(SAMPLE_DATA);
+  }
 }
 
 // =============================================
