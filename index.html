@@ -23,9 +23,8 @@
       --accent2: #ff6b35;
       --text: #f0f0f0;
       --text-muted: #888;
-      --cu: #00c473;
-      --gs: #0064c8;
-      --copy: #ff4444;
+      --printingbox: #00c473;
+      --cafe: #ff6b35;
       --other: #9b59b6;
     }
 
@@ -242,9 +241,8 @@
       letter-spacing: 0.3px;
     }
 
-    .badge-cu { background: rgba(0,196,115,0.15); color: var(--cu); }
-    .badge-gs { background: rgba(0,100,200,0.15); color: var(--gs); }
-    .badge-copy { background: rgba(255,68,68,0.15); color: var(--copy); }
+    .badge-printingbox { background: rgba(0,196,115,0.15); color: var(--printingbox); }
+    .badge-cafe { background: rgba(255,107,53,0.15); color: var(--cafe); }
     .badge-other { background: rgba(155,89,182,0.15); color: var(--other); }
 
     .place-name {
@@ -427,7 +425,7 @@
     }
 
     .info-chip .value.green { color: var(--accent); }
-    .info-chip .value.red { color: var(--copy); }
+    .info-chip .value.red { color: var(--cafe); }
 
     .detail-actions {
       display: flex;
@@ -580,20 +578,16 @@
     <span class="dot" style="background:#00e5a0"></span> 전체
     <span class="count-badge" id="count-all">0</span>
   </button>
-  <button class="filter-btn" data-type="cu" onclick="filterPlaces('cu', this)">
-    <span class="dot" style="background:var(--cu)"></span> CU 프린팅박스
-    <span class="count-badge" id="count-cu" style="background:var(--cu)">0</span>
+  <button class="filter-btn" data-type="printingbox" onclick="filterPlaces('printingbox', this)">
+    <span class="dot" style="background:var(--printingbox)"></span> 프린팅박스
+    <span class="count-badge" id="count-printingbox" style="background:var(--printingbox)">0</span>
   </button>
-  <button class="filter-btn" data-type="gs" onclick="filterPlaces('gs', this)">
-    <span class="dot" style="background:var(--gs)"></span> GS25 출력
-    <span class="count-badge" id="count-gs" style="background:var(--gs)">0</span>
-  </button>
-  <button class="filter-btn" data-type="copy" onclick="filterPlaces('copy', this)">
-    <span class="dot" style="background:var(--copy)"></span> 복사집
-    <span class="count-badge" id="count-copy" style="background:var(--copy)">0</span>
+  <button class="filter-btn" data-type="cafe" onclick="filterPlaces('cafe', this)">
+    <span class="dot" style="background:var(--cafe)"></span> 프린트카페
+    <span class="count-badge" id="count-cafe" style="background:var(--cafe)">0</span>
   </button>
   <button class="filter-btn" data-type="other" onclick="filterPlaces('other', this)">
-    <span class="dot" style="background:var(--other)"></span> 기타 무인출력
+    <span class="dot" style="background:var(--other)"></span> 기타
     <span class="count-badge" id="count-other" style="background:var(--other)">0</span>
   </button>
   <button class="filter-btn" data-type="open24" onclick="filterPlaces('open24', this)">
@@ -676,7 +670,7 @@ const SAMPLE_DATA = [
   {
     id: 1,
     name: "CU 강남역점",
-    type: "cu",
+    type: "printingbox",
     address: "서울 강남구 강남대로 396",
     lat: 37.4979,
     lng: 127.0276,
@@ -690,7 +684,7 @@ const SAMPLE_DATA = [
   {
     id: 2,
     name: "GS25 선릉역점",
-    type: "gs",
+    type: "printingbox",
     address: "서울 강남구 테헤란로 211",
     lat: 37.5045,
     lng: 127.0498,
@@ -704,7 +698,7 @@ const SAMPLE_DATA = [
   {
     id: 3,
     name: "세종복사",
-    type: "copy",
+    type: "other",
     address: "서울 강남구 역삼로 160",
     lat: 37.5012,
     lng: 127.0361,
@@ -718,7 +712,7 @@ const SAMPLE_DATA = [
   {
     id: 4,
     name: "CU 역삼1동점",
-    type: "cu",
+    type: "printingbox",
     address: "서울 강남구 역삼로 152",
     lat: 37.4995,
     lng: 127.0332,
@@ -756,10 +750,9 @@ let userMarker = null;
 
 // 타입별 색상/라벨
 const TYPE_CONFIG = {
-  cu:    { label: 'CU 프린팅박스', color: '#00c473', badgeClass: 'badge-cu', emoji: '🟢' },
-  gs:    { label: 'GS25 출력',     color: '#0064c8', badgeClass: 'badge-gs', emoji: '🔵' },
-  copy:  { label: '복사집',         color: '#ff4444', badgeClass: 'badge-copy', emoji: '🔴' },
-  other: { label: '무인출력',       color: '#9b59b6', badgeClass: 'badge-other', emoji: '🟣' },
+  printingbox: { label: '프린팅박스', color: '#00c473', badgeClass: 'badge-printingbox', emoji: '🟢' },
+  cafe:        { label: '프린트카페', color: '#ff6b35', badgeClass: 'badge-cafe',        emoji: '🟠' },
+  other:       { label: '기타',       color: '#9b59b6', badgeClass: 'badge-other',       emoji: '🟣' },
 };
 
 // =============================================
@@ -956,7 +949,7 @@ function placeItemHTML(place) {
 // 카운트 업데이트
 // =============================================
 function updateCounts(data) {
-  const counts = { all: data.length, cu: 0, gs: 0, copy: 0, other: 0 };
+  const counts = { all: data.length, printingbox: 0, cafe: 0, other: 0 };
   data.forEach(p => counts[p.type]++);
   Object.keys(counts).forEach(k => {
     const el = document.getElementById(`count-${k}`);
