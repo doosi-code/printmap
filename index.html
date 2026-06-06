@@ -288,21 +288,39 @@
       border-radius: 16px 16px 0 0;
       border-top: 1px solid var(--border);
       z-index: 20;
-      max-height: 55vh;
+      height: 35vh;
+      min-height: 56px;
+      max-height: 85vh;
       overflow: hidden;
       flex-direction: column;
       box-shadow: 0 -8px 32px rgba(0,0,0,0.5);
+      transition: height 0.15s ease;
+      will-change: height;
     }
 
     .bottom-sheet.open { display: flex; }
+    .bottom-sheet.dragging { transition: none; }
+
+    .sheet-handle-area {
+      padding: 6px 0 4px;
+      cursor: grab;
+      touch-action: none;
+      flex-shrink: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      user-select: none;
+    }
+
+    .sheet-handle-area:active { cursor: grabbing; }
 
     .sheet-handle {
       width: 36px;
       height: 4px;
       border-radius: 2px;
       background: var(--border);
-      margin: 10px auto 0;
       flex-shrink: 0;
+      pointer-events: none;
     }
 
     .sheet-header {
@@ -605,7 +623,9 @@
 
     <!-- 모바일 바텀시트 -->
     <div class="bottom-sheet open" id="bottomSheet">
-      <div class="sheet-handle"></div>
+      <div class="sheet-handle-area" id="sheetHandleArea">
+        <div class="sheet-handle"></div>
+      </div>
       <div class="sheet-header">
         주변 <strong id="nearbyCount" style="color:var(--accent)">0</strong>곳의 프린트 장소
       </div>
@@ -1061,6 +1081,72 @@ function searchAddress() {
     }
   });
 }
+
+// =============================================
+// 바텀시트 드래그
+// =============================================
+(function() {
+  const sheet = document.getElementById('bottomSheet');
+  const handle = document.getElementById('sheetHandleArea');
+  if (!sheet || !handle) return;
+
+  const SNAP_POINTS = [0.15, 0.35, 0.60, 0.85]; // vh 비율
+  let startY = 0;
+  let startHeight = 0;
+  let isDragging = false;
+
+  function getVh() { return window.innerHeight; }
+
+  function snapTo(ratio) {
+    const h = Math.round(getVh() * ratio);
+    sheet.style.height = h + 'px';
+  }
+
+  function getNearestSnap(heightPx) {
+    const ratio = heightPx / getVh();
+    return SNAP_POINTS.reduce((prev, curr) =>
+      Math.abs(curr - ratio) < Math.abs(prev - ratio) ? curr : prev
+    );
+  }
+
+  function onStart(clientY) {
+    startY = clientY;
+    startHeight = sheet.offsetHeight;
+    isDragging = true;
+    sheet.classList.add('dragging');
+  }
+
+  function onMove(clientY) {
+    if (!isDragging) return;
+    const delta = startY - clientY;
+    const newH = Math.min(Math.max(startHeight + delta, 56), getVh() * 0.88);
+    sheet.style.height = newH + 'px';
+  }
+
+  function onEnd(clientY) {
+    if (!isDragging) return;
+    isDragging = false;
+    sheet.classList.remove('dragging');
+    const delta = startY - clientY;
+    const endH = startHeight + delta;
+    const snap = getNearestSnap(endH);
+    sheet.style.transition = 'height 0.2s ease';
+    snapTo(snap);
+    setTimeout(() => sheet.style.transition = '', 200);
+  }
+
+  // 터치
+  handle.addEventListener('touchstart', e => { onStart(e.touches[0].clientY); }, { passive: true });
+  document.addEventListener('touchmove', e => {
+    if (isDragging) { e.preventDefault(); onMove(e.touches[0].clientY); }
+  }, { passive: false });
+  document.addEventListener('touchend', e => { onEnd(e.changedTouches[0].clientY); });
+
+  // 마우스 (데스크탑 테스트용)
+  handle.addEventListener('mousedown', e => { onStart(e.clientY); e.preventDefault(); });
+  document.addEventListener('mousemove', e => { if (isDragging) onMove(e.clientY); });
+  document.addEventListener('mouseup', e => { onEnd(e.clientY); });
+})();
 
 document.getElementById('searchInput').addEventListener('keydown', e => {
   if (e.key === 'Enter') searchAddress();
