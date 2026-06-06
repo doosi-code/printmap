@@ -749,6 +749,13 @@ let selectedPlace = null;
 let userMarker = null;
 
 // 타입별 색상/라벨
+// 옛날 타입 → 새 타입 매핑
+const TYPE_MIGRATE = {
+  cu: 'printingbox', gs: 'printingbox',
+  copy: 'other', cafe: 'cafe',
+  printingbox: 'printingbox', other: 'other',
+};
+
 const TYPE_CONFIG = {
   printingbox: { label: '프린팅박스', color: '#00c473', badgeClass: 'badge-printingbox', emoji: '🟢' },
   cafe:        { label: '프린트카페', color: '#ff6b35', badgeClass: 'badge-cafe',        emoji: '🟠' },
@@ -830,7 +837,8 @@ async function loadFromGoogleSheets() {
 // 마커 생성
 // =============================================
 function createMarkerContent(place) {
-  const cfg = TYPE_CONFIG[place.type];
+  const type = TYPE_MIGRATE[place.type] || 'other';
+  const cfg = TYPE_CONFIG[type];
   return `
     <div style="
       background:${cfg.color};
